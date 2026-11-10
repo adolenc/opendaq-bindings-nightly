@@ -1,0 +1,231 @@
+name: Nightly bindings
+
+# Builds, from the latest openDAQ main, the two things a language binding needs:
+#   - opendaq.json, the machine-readable API spec, and
+#   - the C bindings library (plus the openDAQ runtime and reference modules) per platform,
+# and publishes them as assets of a `nightly-<date>-<upstream>-<overlay>` release.
+#
+# A run is skipped when neither openDAQ nor the generator overlay moved since the last release.
+
+'on':
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+    inputs:
+      upstream_sha:
+        description: "openDAQ commit to build (default: tip of UPSTREAM_REF from nightly.env)."
+        required: false
+        type: string
+      overlay_sha:
+        description: "Overlay commit to apply (default: tip of OVERLAY_REF from nightly.env)."
+        required: false
+        type: string
+      force:
+        description: "Rebuild and replace the release even if it already exists."
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Resolve sources, generate spec
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      upstream_sha: ${{ steps.resolve.outputs.upstream_sha }}
+      overlay_sha: ${{ steps.resolve.outputs.overlay_sha }}
+      skip: ${{ steps.resolve.outputs.skip }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve commits and release tag
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_UPSTREAM_SHA: ${{ inputs.upstream_sha }}
+          INPUT_OVERLAY_SHA: ${{ inputs.overlay_sha }}
+          FORCE: ${{ inputs.force }}
+        run: |
+          . ./nightly.env
+          upstream_sha="$INPUT_UPSTREAM_SHA"
+          [ -n "$upstream_sha" ] || upstream_sha="$(git ls-remote "$UPSTREAM_REPO" "refs/heads/$UPSTREAM_REF" | cut -f1)"
+          overlay_sha="$INPUT_OVERLAY_SHA"
+          if [ -z "$overlay_sha" ] && [ -n "${OVERLAY_REPO:-}" ]; then
+            overlay_sha="$(git ls-remote "$OVERLAY_REPO" "refs/heads/$OVERLAY_REF" | cut -f1)"
+          fi
+          if [ -z "$upstream_sha" ] || { [ -n "${OVERLAY_REPO:-}" ] && [ -z "$overlay_sha" ]; }; then
+            echo "::error::could not resolve the upstream or overlay commit" >&2
+            exit 1
+          fi
+
+          # The tag names the inputs, so it is the same for the same sources; the date is that of
+          # the first build of them.
+          suffix="$(printf '%.7s' "$upstream_sha")${overlay_sha:+-$(printf '%.7s' "$overlay_sha")}"
+          tag="$(gh release list --limit 200 --json tagName --jq '.[].tagName' \
+                 | grep -E "^nightly-[0-9]{8}-${suffix}\$" | head -n1 || true)"
+          skip=false
+          if [ -n "$tag" ] && [ "$FORCE" != "true" ]; then
+            echo "Release $tag already covers these sources; nothing to do."
+            skip=true
+          fi
+          [ -n "$tag" ] || tag="nightly-$(date -u +%Y%m%d)-${suffix}"
+
+          {
+            echo "tag=$tag"
+            echo "upstream_sha=$upstream_sha"
+            echo "overlay_sha=$overlay_sha"
+            echo "skip=$skip"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Install mono (runs and rebuilds the generators)
+        if: steps.resolve.outputs.skip != 'true'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends mono-devel
+
+      - name: Merge overlay and regenerate
+        if: steps.resolve.outputs.skip != 'true'
+        shell: bash
+        run: |
+          scripts/prepare-source.sh "$RUNNER_TEMP/work" \
+            "${{ steps.resolve.outputs.upstream_sha }}" "${{ steps.resolve.outputs.overlay_sha }}"
+          mkdir -p spec
+          cp "$RUNNER_TEMP"/work/out/* spec/
+
+      - uses: actions/upload-artifact@v4
+        if: steps.resolve.outputs.skip != 'true'
+        with:
+          name: spec
+          path: spec
+          if-no-files-found: error
+          retention-days: 7
+
+  build:
+    name: ${{ matrix.triple }}
+    needs: prepare
+    if: needs.prepare.outputs.skip != 'true'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: linux-x64
+            runner: ubuntu-22.04
+            generator: Ninja
+            cmake_extra: ""
+          - triple: darwin-arm64
+            runner: macos-15
+            generator: Ninja
+            cmake_extra: "-DCMAKE_OSX_DEPLOYMENT_TARGET=10.15"
+          - triple: windows-x64
+            runner: windows-2022
+            generator: Visual Studio 17 2022
+            cmake_extra: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: spec
+          path: spec
+
+      - uses: jwlawson/actions-setup-cmake@v2
+
+      - uses: seanmiddleditch/gha-setup-ninja@v6
+        if: matrix.generator == 'Ninja'
+
+      # Every platform builds the upstream commit with the same patch applied, so the generators
+      # (and mono's compiler) only have to run once, in the prepare job.
+      - name: Check out openDAQ and apply the overlay
+        shell: bash
+        run: |
+          . ./nightly.env
+          git clone --no-tags -c core.autocrlf=false "$UPSTREAM_REPO" openDAQ
+          git -C openDAQ checkout --detach "${{ needs.prepare.outputs.upstream_sha }}"
+          git -C openDAQ apply --binary --whitespace=nowarn "$PWD/spec/bindings-overlay.patch"
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            $(tr '\n' ' ' < openDAQ/.github/packages/apt.txt)
+
+      - name: Install macOS dependencies
+        if: runner.os == 'macOS'
+        shell: bash
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install mono
+
+      - name: Configure
+        shell: bash
+        run: |
+          . ./nightly.env
+          cmake -S openDAQ -B build -G "${{ matrix.generator }}" -DCMAKE_BUILD_TYPE=Release \
+            $OPENDAQ_CMAKE_ARGS ${{ matrix.cmake_extra }}
+
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        shell: bash
+        run: scripts/package-natives.sh build "${{ matrix.triple }}" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: natives-${{ matrix.triple }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: spec
+          path: dist
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: natives-*
+          path: dist
+          merge-multiple: true
+
+      - name: Write manifest
+        shell: bash
+        run: |
+          python3 scripts/write-manifest.py dist \
+            --tag "${{ needs.prepare.outputs.tag }}" \
+            --repository "${{ github.repository }}"
+          cat dist/manifest.json
+
+      - name: Create release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release delete "$TAG" --yes --cleanup-tag
+          fi
+          . dist/source-info.env
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --notes "openDAQ API spec and C bindings built from $UPSTREAM_REPO @ $UPSTREAM_SHA${OVERLAY_SHA:+ with the generator overlay $OVERLAY_REPO @ $OVERLAY_SHA}. Consumed by the language bindings through manifest.json; not meant for manual installation." \
+            dist/manifest.json dist/SHA256SUMS dist/opendaq.json dist/opendaq-c-headers.tar.gz \
+            dist/bindings-overlay.patch dist/opendaq-native-*.tar.gz
