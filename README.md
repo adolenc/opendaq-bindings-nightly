@@ -2,8 +2,9 @@
 
 Nightly builds of the two things an openDAQ language binding is generated from and loads:
 
-- **`opendaq.json`**: a machine-readable description of the whole openDAQ API (interfaces,
-  methods, factories, enums, error codes, and the C symbol each of them is reachable through), and
+- **`opendaq.json`**: a machine-readable description of the openDAQ C API (interfaces with
+  their methods, factories and functions, enums, status codes and ABI types, plus interface ids
+  and vtable slots), exactly as the C bindings library exports it, and
 - **the C bindings library** (`copendaq`) with the openDAQ runtime and the reference modules,
   built for `linux-x64`, `darwin-arm64` and `windows-x64`.
 
