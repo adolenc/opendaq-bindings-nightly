@@ -13,8 +13,8 @@ binding generated from the spec always matches the libraries it loads. Language 
 ([cl-opendaq](https://github.com/adolenc/cl-opendaq), [jopendaq](https://github.com/adolenc/jopendaq))
 pin one release of this repository and never build openDAQ themselves.
 
-This repository holds no openDAQ code. It is a CI runner: a workflow, three scripts and a config
-file.
+This repository holds no openDAQ code. It is a CI runner: a config file, a handful of scripts
+that do the work, and a workflow that only wires the scripts into jobs.
 
 ## Releases
 
@@ -67,14 +67,32 @@ merge the generator overlay        -->   git apply bindings-overlay.patch --> SH
 rebuild generators, regenerate           cmake, build                         GitHub release
 check spec against C headers             package-natives.sh
 => opendaq.json, bindings-overlay.patch  => opendaq-native-<triple>.tar.gz
+                                   \
+                                    `->  test (linux): the C bindings tests,
+                                         alongside the builds; does not hold
+                                         up the release
 ```
 
 - `nightly.env` says what is built: the upstream repository and ref, the overlay, and the
   openDAQ CMake options.
-- `scripts/prepare-source.sh` produces the sources and the spec. It runs standalone
-  (`scripts/prepare-source.sh /tmp/work`; needs `git`, `mono`, `mcs`, `python3`), which is the
-  quickest way to see what a nightly would contain.
-- `scripts/package-natives.sh` and `scripts/write-manifest.py` produce the release assets.
+- Every step of the workflow is one script, and each runs standalone:
+
+  | Script | Job | Does |
+  | --- | --- | --- |
+  | `resolve-release.sh` | prepare | picks the commits and the release tag, or skips the run |
+  | `install-deps.sh` | all | installs mono (generators) or openDAQ's build dependencies |
+  | `prepare-source.sh` | prepare | merges the overlay, regenerates, checks the spec against the C headers |
+  | `checkout-source.sh` | build, test | upstream commit plus `bindings-overlay.patch` |
+  | `build-natives.sh` | build | configures and builds one platform, then `package-natives.sh` |
+  | `test-c-bindings.sh` | test | builds and runs only `bindings/c/tests` (needs Ninja) |
+  | `publish-release.sh` | publish | `write-manifest.py`, then the GitHub release |
+
+  `scripts/prepare-source.sh /tmp/work` (needs `git`, `mono`, `mcs`, `python3`) is the quickest
+  way to see what a nightly would contain, and `scripts/test-c-bindings.sh <openDAQ> <build-dir>`
+  runs the C bindings tests on any checkout.
+- The `test` job builds the same sources with the tests switched on. It runs next to the release
+  builds and `publish` does not wait for it, so a failing test shows on the run without holding
+  back the spec and the libraries; add `test` to `publish`'s `needs` to make it a gate.
 
 A run is skipped when a release for the same pair of commits already exists; dispatch the
 workflow with `force` to rebuild it.
