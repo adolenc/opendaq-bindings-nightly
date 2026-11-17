@@ -3,8 +3,8 @@
 #
 #   publish-release.sh <dist-dir> <tag> <owner/repo>
 #
-# <dist-dir> holds what prepare and build produced: opendaq.json, bindings-overlay.patch,
-# opendaq-c-headers.tar.gz, source-info.env and the opendaq-native-*.tar.gz archives.
+# <dist-dir> holds what prepare and build produced: opendaq-api-spec.json,
+# copendaq-headers.tar.gz, source-info.env and the copendaq-<triple>.tar.gz archives.
 # Needs an authenticated gh.
 set -euo pipefail
 
@@ -27,5 +27,5 @@ if gh release view "$tag" >/dev/null 2>&1; then
     gh release delete "$tag" --yes --cleanup-tag
 fi
 gh release create "$tag" --title "$tag" --notes "$notes" \
-    "$dist/manifest.json" "$dist/SHA256SUMS" "$dist/opendaq.json" "$dist/opendaq-c-headers.tar.gz" \
-    "$dist/bindings-overlay.patch" "$dist"/opendaq-native-*.tar.gz
+    "$dist/manifest.json" "$dist/opendaq-api-spec.json" "$dist/copendaq-headers.tar.gz" \
+    "$dist"/copendaq-*-*.tar.gz

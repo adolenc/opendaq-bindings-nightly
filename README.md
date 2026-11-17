@@ -2,7 +2,7 @@
 
 Nightly builds of the two things an openDAQ language binding is generated from and loads:
 
-- **`opendaq.json`**: a machine-readable description of the openDAQ C API (interfaces with
+- **`opendaq-api-spec.json`**: a machine-readable description of the openDAQ C API (interfaces with
   their methods, factories and functions, enums, status codes and ABI types, plus interface ids
   and vtable slots), exactly as the C bindings library exports it, and
 - **the C bindings library** (`copendaq`) with the openDAQ runtime and the reference modules,
@@ -23,11 +23,9 @@ Every release is tagged `nightly-<date>-<openDAQ sha>-<overlay sha>` and carries
 | Asset | Contents |
 | --- | --- |
 | `manifest.json` | The commits the release was built from and every asset with its SHA-256. The only file a consumer needs to know the name of. |
-| `opendaq.json` | The API spec. |
-| `opendaq-native-<triple>.tar.gz` | Flat archive of the shared libraries: `copendaq`, the openDAQ core libraries, and the modules. |
-| `opendaq-c-headers.tar.gz` | `bindings/c/include`, for consumers that compile against the C API. |
-| `bindings-overlay.patch` | Everything that differs from the upstream commit; `git apply --binary` it onto `upstream.sha` to reproduce the exact sources. |
-| `SHA256SUMS` | Checksums of the above. |
+| `opendaq-api-spec.json` | The API spec. |
+| `copendaq-<triple>.tar.gz` | Flat archive of the shared libraries: `copendaq`, the openDAQ core libraries, and the modules. |
+| `copendaq-headers.tar.gz` | `bindings/c/include`, for consumers that compile against the C API. |
 
 ```json
 {
@@ -35,13 +33,13 @@ Every release is tagged `nightly-<date>-<openDAQ sha>-<overlay sha>` and carries
   "tag": "nightly-20261110-0e29cce-1a2b3c4",
   "base_url": "https://github.com/<owner>/opendaq-bindings-nightly/releases/download/nightly-20261110-0e29cce-1a2b3c4/",
   "upstream": { "repo": "https://github.com/openDAQ/openDAQ.git", "ref": "main", "sha": "0e29cce5..." },
-  "overlay":  { "repo": "...", "ref": "bindings-generators", "sha": "...", "patch": { "file": "bindings-overlay.patch", "sha256": "...", "size": 0 } },
-  "spec":     { "file": "opendaq.json", "sha256": "...", "size": 0, "schema": "opendaq-bindings/1" },
-  "c_headers": { "file": "opendaq-c-headers.tar.gz", "sha256": "...", "size": 0 },
+  "overlay":  { "repo": "...", "ref": "bindings-generators", "sha": "..." },
+  "spec":     { "file": "opendaq-api-spec.json", "sha256": "...", "size": 0, "schema": "opendaq-bindings/1" },
+  "c_headers": { "file": "copendaq-headers.tar.gz", "sha256": "...", "size": 0 },
   "natives": {
-    "linux-x64":    { "file": "opendaq-native-linux-x64.tar.gz",    "sha256": "...", "size": 0 },
-    "darwin-arm64": { "file": "opendaq-native-darwin-arm64.tar.gz", "sha256": "...", "size": 0 },
-    "windows-x64":  { "file": "opendaq-native-windows-x64.tar.gz",  "sha256": "...", "size": 0 }
+    "linux-x64":    { "file": "copendaq-linux-x64.tar.gz",    "sha256": "...", "size": 0 },
+    "darwin-arm64": { "file": "copendaq-darwin-arm64.tar.gz", "sha256": "...", "size": 0 },
+    "windows-x64":  { "file": "copendaq-windows-x64.tar.gz",  "sha256": "...", "size": 0 }
   }
 }
 ```
@@ -63,10 +61,11 @@ releases page) shows what there is to bump to.
 prepare (linux)                          build (linux, macOS, windows)        publish
 ---------------                          -----------------------------        -------
 clone openDAQ main                       clone openDAQ at the same commit     manifest.json
-merge the generator overlay        -->   git apply bindings-overlay.patch --> SHA256SUMS
-rebuild generators, regenerate           cmake, build                         GitHub release
+merge the generator overlay        -->   git apply bindings-overlay.patch --> GitHub release
+rebuild generators, regenerate           cmake, build
 check spec against C headers             package-natives.sh
-=> opendaq.json, bindings-overlay.patch  => opendaq-native-<triple>.tar.gz
+=> opendaq-api-spec.json,                => copendaq-<triple>.tar.gz
+   bindings-overlay.patch
                                    \
                                     `->  test (linux): the C bindings tests,
                                          alongside the builds; does not hold
@@ -90,6 +89,11 @@ check spec against C headers             package-natives.sh
   `scripts/prepare-source.sh /tmp/work` (needs `git`, `mono`, `mcs`, `python3`) is the quickest
   way to see what a nightly would contain, and `scripts/test-c-bindings.sh <openDAQ> <build-dir>`
   runs the C bindings tests on any checkout.
+- `bindings-overlay.patch` is everything that differs from the upstream commit. It is how `prepare`
+  hands the regenerated tree to the other jobs, so the generators run once and every platform
+  builds the same sources; it stays a workflow artifact and is not part of the release.
+  `scripts/prepare-source.sh <work-dir> <upstream.sha> <overlay.sha>` with the commits from a
+  manifest reproduces the sources of that release.
 - The `test` job builds the same sources with the tests switched on. It runs next to the release
   builds and `publish` does not wait for it, so a failing test shows on the run without holding
   back the spec and the libraries; add `test` to `publish`'s `needs` to make it a gate.

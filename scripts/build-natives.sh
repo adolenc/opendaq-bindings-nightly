@@ -4,7 +4,7 @@
 #   build-natives.sh <triple> <src-dir> <build-dir> <dist-dir>
 #
 # Configures with OPENDAQ_CMAKE_ARGS from nightly.env plus what the platform needs, builds Release,
-# and leaves opendaq-native-<triple>.tar.gz in <dist-dir> (see package-natives.sh).
+# and leaves copendaq-<triple>.tar.gz in <dist-dir> (see package-natives.sh).
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")/.." && pwd)"

@@ -4,14 +4,15 @@
 #   prepare-source.sh <work-dir> [upstream-sha [overlay-sha]]
 #
 # Clones UPSTREAM_REPO, merges the generator overlay onto it, rebuilds the generators and regenerates
-# the C bindings and opendaq.json. Nothing generated is ever merged: a conflict in a generated file is
+# the C bindings and the API spec. Nothing generated is ever merged: a conflict in a generated file is
 # settled by regenerating it, and a conflict anywhere else fails the run, because it means the overlay
 # branch needs a rebase by hand.
 #
 # Leaves in <work-dir>/out:
-#   opendaq.json              the API spec
-#   bindings-overlay.patch    everything that differs from the upstream commit (git apply --binary)
-#   opendaq-c-headers.tar.gz  bindings/c/include
+#   opendaq-api-spec.json     the API spec
+#   copendaq-headers.tar.gz   bindings/c/include
+#   bindings-overlay.patch    everything that differs from the upstream commit (git apply --binary);
+#                             hands the tree to checkout-source.sh, not part of the release
 #   source-info.env           UPSTREAM_SHA / OVERLAY_SHA that were built
 # and the prepared tree in <work-dir>/openDAQ.
 set -euo pipefail
@@ -76,8 +77,8 @@ python3 bindings/json/check_c_bindings.py bindings/json/opendaq.json bindings/c/
 
 git add -A
 git diff --cached --binary "$upstream_sha" > "$out/bindings-overlay.patch"
-cp bindings/json/opendaq.json "$out/opendaq.json"
-tar -czf "$out/opendaq-c-headers.tar.gz" -C bindings/c/include .
+cp bindings/json/opendaq.json "$out/opendaq-api-spec.json"
+tar -czf "$out/copendaq-headers.tar.gz" -C bindings/c/include .
 {
     echo "UPSTREAM_REPO=$UPSTREAM_REPO"
     echo "UPSTREAM_REF=$UPSTREAM_REF"

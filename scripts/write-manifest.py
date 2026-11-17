@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Writes manifest.json and SHA256SUMS for a nightly release.
+"""Writes manifest.json for a nightly release.
 
     write-manifest.py <dist-dir> --tag <tag> --repository <owner/repo>
 
@@ -15,7 +15,8 @@ import json
 import re
 from pathlib import Path
 
-NATIVE_RE = re.compile(r"^opendaq-native-(?P<triple>[\w-]+)\.tar\.gz$")
+# copendaq-<os>-<arch>.tar.gz; the hyphen in the triple keeps copendaq-headers.tar.gz out.
+NATIVE_RE = re.compile(r"^copendaq-(?P<triple>[a-z0-9]+-[a-z0-9_]+)\.tar\.gz$")
 
 
 def sha256(path: Path) -> str:
@@ -42,7 +43,7 @@ def main() -> None:
         for line in (args.dist / "source-info.env").read_text().splitlines()
         if "=" in line
     )
-    spec_path = args.dist / "opendaq.json"
+    spec_path = args.dist / "opendaq-api-spec.json"
     spec = json.loads(spec_path.read_text())
 
     natives = {}
@@ -51,7 +52,7 @@ def main() -> None:
         if m:
             natives[m.group("triple")] = asset(path)
     if not natives:
-        raise SystemExit(f"no opendaq-native-*.tar.gz in {args.dist}")
+        raise SystemExit(f"no copendaq-<triple>.tar.gz in {args.dist}")
 
     manifest = {
         "schema": "opendaq-bindings-nightly/1",
@@ -59,7 +60,7 @@ def main() -> None:
         "base_url": f"https://github.com/{args.repository}/releases/download/{args.tag}/",
         "upstream": {"repo": info["UPSTREAM_REPO"], "ref": info["UPSTREAM_REF"], "sha": info["UPSTREAM_SHA"]},
         "spec": {**asset(spec_path), "schema": spec.get("schema")},
-        "c_headers": asset(args.dist / "opendaq-c-headers.tar.gz"),
+        "c_headers": asset(args.dist / "copendaq-headers.tar.gz"),
         "natives": natives,
     }
     if info.get("OVERLAY_SHA"):
@@ -67,15 +68,9 @@ def main() -> None:
             "repo": info["OVERLAY_REPO"],
             "ref": info["OVERLAY_REF"],
             "sha": info["OVERLAY_SHA"],
-            "patch": asset(args.dist / "bindings-overlay.patch"),
         }
 
     (args.dist / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
-
-    listed = [spec_path, args.dist / "opendaq-c-headers.tar.gz", args.dist / "bindings-overlay.patch"]
-    listed += [args.dist / entry["file"] for entry in natives.values()]
-    lines = [f"{sha256(p)}  {p.name}" for p in listed if p.exists()]
-    (args.dist / "SHA256SUMS").write_text("\n".join(lines) + "\n")
 
 
 if __name__ == "__main__":

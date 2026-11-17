@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Collects the runtime libraries of an openDAQ build into opendaq-native-<triple>.tar.gz.
+# Collects the runtime libraries of an openDAQ build into copendaq-<triple>.tar.gz.
 #
 #   package-natives.sh <build-dir> <triple> <out-dir>
 #
@@ -35,6 +35,6 @@ for stem in daqcoretypes daqcoreobjects opendaq copendaq; do
 done
 
 mkdir -p "$out"
-tar -czf "$out/opendaq-native-$triple.tar.gz" -C "$stage" .
-echo "opendaq-native-$triple.tar.gz:"
+tar -czf "$out/copendaq-$triple.tar.gz" -C "$stage" .
+echo "copendaq-$triple.tar.gz:"
 ls -1 "$stage" | sed 's/^/  /'

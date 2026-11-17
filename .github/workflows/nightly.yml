@@ -1,7 +1,7 @@
 name: Nightly bindings
 
 # Builds, from the latest openDAQ main, the two things a language binding needs:
-#   - opendaq.json, the machine-readable API spec, and
+#   - opendaq-api-spec.json, the machine-readable API spec, and
 #   - the C bindings library (plus the openDAQ runtime and reference modules) per platform,
 # and publishes them as assets of a `nightly-<date>-<upstream>-<overlay>` release.
 #
