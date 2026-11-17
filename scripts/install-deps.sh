@@ -5,7 +5,7 @@
 #   install-deps.sh build <src-dir>     what building openDAQ needs on this OS
 #
 # Windows runners come with everything; Linux takes openDAQ's own package list
-# (.github/packages/apt.txt), macOS needs mono for the generator step of the build.
+# (.github/packages/apt.txt) plus ninja, macOS needs ninja plus mono for the generator step of the build.
 set -euo pipefail
 
 what="${1:?usage: install-deps.sh generators | build <src-dir>}"
@@ -24,10 +24,10 @@ case "$what" in
         case "$(uname -s)" in
             Linux)
                 # shellcheck disable=SC2046
-                apt_install $(tr '\n' ' ' < "$src/.github/packages/apt.txt")
+                apt_install ninja-build $(tr '\n' ' ' < "$src/.github/packages/apt.txt")
                 ;;
             Darwin)
-                HOMEBREW_NO_AUTO_UPDATE=1 brew install mono
+                HOMEBREW_NO_AUTO_UPDATE=1 brew install ninja mono
                 ;;
             *)
                 ;;

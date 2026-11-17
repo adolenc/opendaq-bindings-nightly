@@ -48,7 +48,7 @@ jobs:
       upstream_sha: ${{ steps.resolve.outputs.upstream_sha }}
       skip: ${{ steps.resolve.outputs.skip }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - id: resolve
         env:
@@ -67,7 +67,7 @@ jobs:
           "${{ steps.resolve.outputs.upstream_sha }}" "${{ steps.resolve.outputs.overlay_sha }}"
           && mkdir -p spec && cp "$RUNNER_TEMP"/work/out/* spec/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.resolve.outputs.skip != 'true'
         with:
           name: spec
@@ -88,8 +88,8 @@ jobs:
           - { triple: darwin-arm64, runner: macos-15 }
           - { triple: windows-x64, runner: windows-2022 }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: spec
           path: spec
@@ -97,14 +97,12 @@ jobs:
       - uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: '4.4.x'
-      - uses: seanmiddleditch/gha-setup-ninja@v6
-        if: runner.os != 'Windows'
 
       - run: scripts/checkout-source.sh openDAQ "${{ needs.prepare.outputs.upstream_sha }}" spec/bindings-overlay.patch
       - run: scripts/install-deps.sh build openDAQ
       - run: scripts/build-natives.sh "${{ matrix.triple }}" openDAQ build dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: natives-${{ matrix.triple }}
           path: dist
@@ -119,8 +117,8 @@ jobs:
     if: needs.prepare.outputs.skip != 'true'
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: spec
           path: spec
@@ -128,7 +126,6 @@ jobs:
       - uses: jwlawson/actions-setup-cmake@v2
         with:
           cmake-version: '4.4.x'
-      - uses: seanmiddleditch/gha-setup-ninja@v6
 
       - run: scripts/checkout-source.sh openDAQ "${{ needs.prepare.outputs.upstream_sha }}" spec/bindings-overlay.patch
       - run: scripts/install-deps.sh build openDAQ
@@ -139,12 +136,12 @@ jobs:
     needs: [prepare, build]
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           name: spec
           path: dist
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: natives-*
           path: dist
