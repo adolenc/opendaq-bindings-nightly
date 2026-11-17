@@ -17,10 +17,15 @@ generators until they are upstream. Old releases are kept, so a pinned tag keeps
 (`upstream`, `overlay`) and lists the other files (`spec`, `natives.<triple>`, `c_headers`), each
 with its file name, SHA-256 and size. Take the file names from here rather than hard-coding them.
 
-**`opendaq-api-spec.json`** describes the C API exactly as `copendaq` exports it. It has every
-interface with its id, base interface, methods (with their vtable slots), factories and functions,
-plus the enums, the error codes, the plain types (aliases, structs, callbacks) and notes on the
-ABI. Doc comments are included. This is the file a binding is generated from.
+**`opendaq-api-spec.json`** describes the C API exactly as `copendaq` exports it, for the openDAQ
+version in its `version` field. It has every interface with its id, base interface, methods (with
+their vtable slots), factories and functions, plus the enums, the error codes, the plain types
+(aliases, structs, callbacks) and notes on the ABI. Every argument has a `direction` (`in`, `out`
+or `inout`), and objects, strings and memory also have an `ownership` (`owned` or `borrowed`)
+that says whether whoever receives them must release them. Doc comments are included. This is the
+file a binding is generated from; its format is described in
+[`bindings/json/README.md`](https://github.com/adolenc/openDAQ/blob/bindings-generators/bindings/json/README.md)
+on the overlay branch.
 
 **`copendaq-<triple>.tar.gz`** holds the shared libraries for one platform: `linux-x64`,
 `macos-arm64` or `windows-x64`. The archive is flat. It contains `copendaq`, the openDAQ libraries
