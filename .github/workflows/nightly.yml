@@ -93,7 +93,10 @@ jobs:
         with:
           name: spec
           path: spec
+      # Builds started failing with CMake 4.5.0 (2026-11-12); stay on 4.4 until that is sorted out.
       - uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '4.4.x'
       - uses: seanmiddleditch/gha-setup-ninja@v6
         if: runner.os != 'Windows'
 
@@ -121,7 +124,10 @@ jobs:
         with:
           name: spec
           path: spec
+      # Builds started failing with CMake 4.5.0 (2026-11-12); stay on 4.4 until that is sorted out.
       - uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '4.4.x'
       - uses: seanmiddleditch/gha-setup-ninja@v6
 
       - run: scripts/checkout-source.sh openDAQ "${{ needs.prepare.outputs.upstream_sha }}" spec/bindings-overlay.patch
