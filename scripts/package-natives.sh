@@ -13,7 +13,7 @@ out="${3:?}"
 
 case "$triple" in
     linux-*)   pattern='\.so$' ;;
-    darwin-*)  pattern='(\.dylib|\.so)$' ;;
+    macos-*)   pattern='(\.dylib|\.so)$' ;;
     windows-*) pattern='\.dll$' ;;
     *) echo "unsupported triple: $triple" >&2; exit 1 ;;
 esac

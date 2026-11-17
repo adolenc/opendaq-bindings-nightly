@@ -23,7 +23,7 @@ plus the enums, the error codes, the plain types (aliases, structs, callbacks) a
 ABI. Doc comments are included. This is the file a binding is generated from.
 
 **`copendaq-<triple>.tar.gz`** holds the shared libraries for one platform: `linux-x64`,
-`darwin-arm64` or `windows-x64`. The archive is flat. It contains `copendaq`, the openDAQ libraries
+`macos-arm64` or `windows-x64`. The archive is flat. It contains `copendaq`, the openDAQ libraries
 it depends on (`daqcoretypes`, `daqcoreobjects`, `opendaq`) and the modules enabled in
 `nightly.env`, currently the reference device, the reference function blocks and the native
 streaming client. Extract it into one directory, which is then both where `copendaq` is loaded from

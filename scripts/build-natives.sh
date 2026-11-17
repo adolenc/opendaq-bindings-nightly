@@ -18,7 +18,7 @@ dist="${4:?}"
 
 case "$triple" in
     linux-x64)    platform_args=(-G Ninja) ;;
-    darwin-arm64) platform_args=(-G Ninja -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15) ;;
+    macos-arm64)  platform_args=(-G Ninja -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15) ;;
     windows-x64)  platform_args=(-G "Visual Studio 17 2022") ;;
     *) echo "unsupported triple: $triple" >&2; exit 1 ;;
 esac

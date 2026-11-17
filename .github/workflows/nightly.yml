@@ -85,7 +85,7 @@ jobs:
       matrix:
         include:
           - { triple: linux-x64, runner: ubuntu-22.04 }
-          - { triple: darwin-arm64, runner: macos-15 }
+          - { triple: macos-arm64, runner: macos-15 }
           - { triple: windows-x64, runner: windows-2022 }
     steps:
       - uses: actions/checkout@v7
