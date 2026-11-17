@@ -1,127 +1,44 @@
 # opendaq-bindings-nightly
 
-Nightly builds of the two things an openDAQ language binding is generated from and loads:
+Nightly builds of what an openDAQ language binding needs: a machine-readable description of the
+openDAQ C API to generate the binding from, and the C bindings library (`copendaq`) to load at run
+time. Bindings such as [cl-opendaq](https://github.com/adolenc/cl-opendaq) and
+[jopendaq](https://github.com/adolenc/jopendaq) pin one release of this repository and never build
+openDAQ themselves.
 
-- **`opendaq-api-spec.json`**: a machine-readable description of the openDAQ C API (interfaces with
-  their methods, factories and functions, enums, status codes and ABI types, plus interface ids
-  and vtable slots), exactly as the C bindings library exports it, and
-- **the C bindings library** (`copendaq`) with the openDAQ runtime and the reference modules,
-  built for `linux-x64`, `darwin-arm64` and `windows-x64`.
+Each release is tagged `nightly-<date>-<openDAQ sha>-<overlay sha>` and everything in it is built
+from that one commit of [openDAQ](https://github.com/openDAQ/openDAQ) `main`, so the spec always
+matches the libraries next to it. The overlay is the branch that holds the spec and C bindings
+generators until they are upstream. Old releases are kept, so a pinned tag keeps working.
 
-Both come from the same commit of [openDAQ](https://github.com/openDAQ/openDAQ) `main`, so a
-binding generated from the spec always matches the libraries it loads. Language bindings
-([cl-opendaq](https://github.com/adolenc/cl-opendaq), [jopendaq](https://github.com/adolenc/jopendaq))
-pin one release of this repository and never build openDAQ themselves.
+## What is in a release
 
-This repository holds no openDAQ code. It is a CI runner: a config file, a handful of scripts
-that do the work, and a workflow that only wires the scripts into jobs.
+**`manifest.json`** is the entry point. It names the commits the release was built from
+(`upstream`, `overlay`) and lists the other files (`spec`, `natives.<triple>`, `c_headers`), each
+with its file name, SHA-256 and size. Take the file names from here rather than hard-coding them.
 
-## Releases
+**`opendaq-api-spec.json`** describes the C API exactly as `copendaq` exports it. It has every
+interface with its id, base interface, methods (with their vtable slots), factories and functions,
+plus the enums, the error codes, the plain types (aliases, structs, callbacks) and notes on the
+ABI. Doc comments are included. This is the file a binding is generated from.
 
-Every release is tagged `nightly-<date>-<openDAQ sha>-<overlay sha>` and carries:
+**`copendaq-<triple>.tar.gz`** holds the shared libraries for one platform: `linux-x64`,
+`darwin-arm64` or `windows-x64`. The archive is flat. It contains `copendaq`, the openDAQ libraries
+it depends on (`daqcoretypes`, `daqcoreobjects`, `opendaq`) and the modules enabled in
+`nightly.env`, currently the reference device, the reference function blocks and the native
+streaming client. Extract it into one directory, which is then both where `copendaq` is loaded from
+and the module path.
 
-| Asset | Contents |
-| --- | --- |
-| `manifest.json` | The commits the release was built from and every asset with its SHA-256. The only file a consumer needs to know the name of. |
-| `opendaq-api-spec.json` | The API spec. |
-| `copendaq-<triple>.tar.gz` | Flat archive of the shared libraries: `copendaq`, the openDAQ core libraries, and the modules. |
-| `copendaq-headers.tar.gz` | `bindings/c/include`, for consumers that compile against the C API. |
+**`copendaq-headers.tar.gz`** has the C headers of `copendaq`. Only a binding that compiles against
+the C API needs it; one that goes through an FFI can work from the spec alone.
 
-```json
-{
-  "schema": "opendaq-bindings-nightly/1",
-  "tag": "nightly-20261110-0e29cce-1a2b3c4",
-  "base_url": "https://github.com/<owner>/opendaq-bindings-nightly/releases/download/nightly-20261110-0e29cce-1a2b3c4/",
-  "upstream": { "repo": "https://github.com/openDAQ/openDAQ.git", "ref": "main", "sha": "0e29cce5..." },
-  "overlay":  { "repo": "...", "ref": "bindings-generators", "sha": "..." },
-  "spec":     { "file": "opendaq-api-spec.json", "sha256": "...", "size": 0, "schema": "opendaq-bindings/1" },
-  "c_headers": { "file": "copendaq-headers.tar.gz", "sha256": "...", "size": 0 },
-  "natives": {
-    "linux-x64":    { "file": "copendaq-linux-x64.tar.gz",    "sha256": "...", "size": 0 },
-    "darwin-arm64": { "file": "copendaq-darwin-arm64.tar.gz", "sha256": "...", "size": 0 },
-    "windows-x64":  { "file": "copendaq-windows-x64.tar.gz",  "sha256": "...", "size": 0 }
-  }
-}
-```
+## Using a release
 
-### Consuming a release
+Pin a release tag in the binding. Download `manifest.json` from that release, then the spec and
+the archive for each platform you need, and check each file against its SHA-256 in the manifest.
+The API can change between nightlies, so regenerate the binding from the spec whenever the pin
+moves. Both JSON files carry a `schema` field (`opendaq-bindings-nightly/1` for the manifest,
+`opendaq-bindings/1` for the spec) that tells you which layout you are reading.
 
-A binding keeps the tag it was generated from in a lock file and bumps it deliberately:
-
-1. download `<base_url>manifest.json` for the pinned tag,
-2. download `spec.file` and the `natives[<triple>].file` it needs, verifying each `sha256`,
-3. regenerate the binding from the spec, load the libraries from the extracted archive.
-
-Releases are never pruned or moved, so a pinned tag keeps working. `gh release list` (or the
-releases page) shows what there is to bump to.
-
-## How a nightly is built
-
-```
-prepare (linux)                          build (linux, macOS, windows)        publish
----------------                          -----------------------------        -------
-clone openDAQ main                       clone openDAQ at the same commit     manifest.json
-merge the generator overlay        -->   git apply bindings-overlay.patch --> GitHub release
-rebuild generators, regenerate           cmake, build
-check spec against C headers             package-natives.sh
-=> opendaq-api-spec.json,                => copendaq-<triple>.tar.gz
-   bindings-overlay.patch
-                                   \
-                                    `->  test (linux): the C bindings tests,
-                                         alongside the builds; does not hold
-                                         up the release
-```
-
-- `nightly.env` says what is built: the upstream repository and ref, the overlay, and the
-  openDAQ CMake options.
-- Every step of the workflow is one script, and each runs standalone:
-
-  | Script | Job | Does |
-  | --- | --- | --- |
-  | `resolve-release.sh` | prepare | picks the commits and the release tag, or skips the run |
-  | `install-deps.sh` | all | installs mono (generators) or openDAQ's build dependencies |
-  | `prepare-source.sh` | prepare | merges the overlay, regenerates, checks the spec against the C headers |
-  | `checkout-source.sh` | build, test | upstream commit plus `bindings-overlay.patch` |
-  | `build-natives.sh` | build | configures and builds one platform, then `package-natives.sh` |
-  | `test-c-bindings.sh` | test | builds and runs only `bindings/c/tests` (needs Ninja) |
-  | `publish-release.sh` | publish | `write-manifest.py`, then the GitHub release |
-
-  `scripts/prepare-source.sh /tmp/work` (needs `git`, `mono`, `mcs`, `python3`) is the quickest
-  way to see what a nightly would contain, and `scripts/test-c-bindings.sh <openDAQ> <build-dir>`
-  runs the C bindings tests on any checkout.
-- `bindings-overlay.patch` is everything that differs from the upstream commit. It is how `prepare`
-  hands the regenerated tree to the other jobs, so the generators run once and every platform
-  builds the same sources; it stays a workflow artifact and is not part of the release.
-  `scripts/prepare-source.sh <work-dir> <upstream.sha> <overlay.sha>` with the commits from a
-  manifest reproduces the sources of that release.
-- The `test` job builds the same sources with the tests switched on. It runs next to the release
-  builds and `publish` does not wait for it, so a failing test shows on the run without holding
-  back the spec and the libraries; add `test` to `publish`'s `needs` to make it a gate.
-
-A run is skipped when a release for the same pair of commits already exists; dispatch the
-workflow with `force` to rebuild it.
-
-### The generator overlay
-
-The spec generator (`RTGen.Json`) and the reworked C bindings generator are not in upstream openDAQ
-yet. Until they are, they live on the `bindings-generators` branch of a fork, and the nightly
-merges that branch onto upstream `main` before generating.
-
-Generated files are never merged. Both generators discover the API from the C++ headers, so after
-the merge everything generated is simply regenerated, which is what makes a new upstream interface
-show up in the next nightly with no manual step. If the merge conflicts in a generated file, the
-conflict is discarded and the file regenerated. If it conflicts in a hand-written file, the run
-fails: the overlay branch then needs a rebase onto upstream by hand.
-
-Once the generators are upstream, empty `OVERLAY_REPO` in `nightly.env` and the overlay step
-disappears.
-
-## Setting up
-
-1. Create the repository and push this directory.
-2. Make sure the overlay branch named in `nightly.env` is pushed and public.
-3. Run the workflow once by hand (Actions → Nightly bindings → Run workflow) to get the first
-   release.
-
-Scheduled workflows are disabled by GitHub after 60 days without repository activity; re-enable
-the workflow from the Actions tab if nightlies stop.
+How a nightly is built is in `.github/workflows/nightly.yml` and the scripts it calls;
+`nightly.env` says what is built.
